@@ -4,6 +4,12 @@ const http = require("http");
 const server = http.createServer(app);
 const { Server } = require("socket.io");
 const io = new Server(server);
+const dotenv = require("dotenv");
+dotenv.config();
+
+// const PORT = 3000;
+// console.log(process.env.PORT);
+const PORT = process.env.PORT;
 
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/index.html");
@@ -44,6 +50,6 @@ io.on("connection", (socket) => {
 //sendCandidateB
 
 //answerFromBtoA
-server.listen(3000, () => {
-  console.log("listening on *:3000");
+server.listen(PORT, () => {
+  console.log(`listening on *:${PORT}`);
 });
