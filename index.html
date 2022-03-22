@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ganesh Kanna</title>
+  </head>
+  <body>
+    <button id="clientA">Start to Connect</button>
+
+    <br />
+    <br />
+    <br />
+    <br />
+
+    <input type="text" id="PC-A-text" />
+
+    <br />
+    <button id="clientASend">PC A Send</button>
+
+    <h1>PC-A-Message</h1>
+    <p id="PC-A-Message"></p>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- <script src="script.js"></script> -->
+
+    <script>
+      document.getElementById("clientA").addEventListener("click", ClientA);
+
+      async function ClientA() {
+        var socket = io();
+
+        let i;
+
+        socket.on("NewUser", (arg) => console.log(`From:- Server || ${arg}`));
+
+        //Creating PC-A RTCP Connection
+        const peerConnectionA = new RTCPeerConnection({
+          iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+        });
+
+        //Mentionin what kind of data been shared
+        const sendChannel = peerConnectionA.createDataChannel("sendChannel");
+
+        //Creating PC-A OFFER
+        const offer = await peerConnectionA.createOffer();
+
+        console.log(`Am dispalying offer - ${JSON.stringify(offer)}`);
+
+        //Sets the local description of the connection to be this SDP by calling setLocalDescription()
+        await peerConnectionA.setLocalDescription(offer);
+
+        //PC-A Sends offer to PC-B via signalling server
+        socket.emit("SendOffer", JSON.stringify(offer));
+
+        socket.on("answerFromBtoA", (arg) => {
+          console.log(`From Server:- || Printing Answer from B - ${arg}`);
+          console.log("Entering Function");
+          addingAnswerToA(arg);
+          console.log("came out of function");
+        });
+
+        async function addingAnswerToA(getAnswer) {
+          console.log(typeof getAnswer);
+          console.log(typeof JSON.parse(getAnswer));
+          await peerConnectionA.setRemoteDescription(JSON.parse(getAnswer));
+          console.log("added B Answer");
+
+          console.log("Geeting ICE of A");
+          peerConnectionA.onicecandidate = (iceEvent) => {
+            console.log(iceEvent.candidate);
+            console.log("Sending Candidate A to Server");
+            socket.emit("sendCandidateA", JSON.stringify(iceEvent.candidate));
+            console.log("Candidate A sent to Server");
+            //candidateFromA(iceEvent.candidate);
+          };
+
+          socket.on("candidateFromBtoA", (arg) => {
+            console.log(`Reprinting Candidate B in A - ${arg}`);
+            console.log("Entering candidateFromB Function");
+            candidateFromB(arg);
+            console.log("Exited candidateFromB Function");
+          });
+        }
+
+        async function candidateFromB(candidateB) {
+          console.log(typeof candidateB);
+          console.log(typeof JSON.parse(candidateB));
+          await peerConnectionA.addIceCandidate(JSON.parse(candidateB));
+          console.log("Added Candidate B to A");
+        }
+
+        //PC-A sends message on connection opens
+        sendChannel.onopen = (e) => {
+          console.log("connection opened");
+          sendChannel.send("messsage from A");
+          document
+            .getElementById("clientASend")
+            .addEventListener("click", () =>
+              sendChannel.send(document.getElementById("PC-A-text").value)
+            );
+        };
+
+        //PC-A receive messages upon connection opens
+        sendChannel.onmessage = (e) => {
+          console.log(e.data);
+          document.getElementById(
+            "PC-A-Message"
+          ).innerHTML += `<br />Message from B: ${e.data}`;
+        };
+      }
+    </script>
+  </body>
+</html>

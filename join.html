@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <h1>joiner</h1>
+    <input type="text" id="PC-B-text" />
+    <button id="clientBSend">PC B Send</button>
+    <h1>PC-B-Message</h1>
+    <p id="PC-B-Message"></p>
+    <script src="/socket.io/socket.io.js"></script>
+  </body>
+
+  <script>
+    //Creating PC-B RTCP Connection
+    const peerConnectionB = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+
+    var socket = io();
+
+    let i;
+
+    socket.on("NewUser", (arg) => console.log(`From:- Server || ${arg}`));
+
+    //PC-B Receives PC-A offer via signalling server
+    socket.on("offerFromAtoB", (arg) => {
+      console.log(`From:- Server || OFFER to B From A -- ${arg}`);
+      console.log("Entering Function");
+      addingOfferToB(arg);
+      console.log("came out of function");
+    });
+
+    async function addingOfferToB(getOffer) {
+      console.log(typeof getOffer);
+      console.log(typeof JSON.parse(getOffer));
+      await peerConnectionB.setRemoteDescription(JSON.parse(getOffer));
+      console.log("added A Offer");
+      //Creating PC-B Answer
+      const answer = await peerConnectionB.createAnswer();
+      console.log(`Am dispalying Answer - ${JSON.stringify(answer)}`);
+
+      //Sets the local description of the connection to be this SDP by calling setLocalDescription().
+      await peerConnectionB.setLocalDescription(answer);
+      console.log("Sending answer to Server");
+      socket.emit("sendAnswer", JSON.stringify(answer));
+      console.log("Answer sent to Server");
+
+      socket.on("candidateFromAtoB", (arg) => {
+        console.log(`Reprinting Candidate A in B - ${arg}`);
+        console.log("Entering candidateFromA Function");
+        candidateFromA(arg);
+        console.log("Exited candidateFromA Function");
+      });
+
+      console.log("Getting Candidate B");
+      peerConnectionB.onicecandidate = (iceEvent) => {
+        console.log(iceEvent.candidate);
+        console.log("Sending Candidate B to Server");
+        socket.emit("sendCandidateB", JSON.stringify(iceEvent.candidate));
+        console.log("Candidate B sent to Server");
+        //candidateFromA(iceEvent.candidate);
+      };
+    }
+
+    async function candidateFromA(candidateA) {
+      console.log(typeof candidateA);
+      console.log(typeof JSON.parse(candidateA));
+      await peerConnectionB.addIceCandidate(JSON.parse(candidateA));
+      console.log("Added Candidate A to B");
+    }
+
+    //PC-B Send/receive messages upon connection opens
+    peerConnectionB.ondatachannel = (e) => {
+    const receiveChannel = e.channel;
+    receiveChannel.send("Message from B");
+    document
+      .getElementById("clientBSend")
+      .addEventListener("click", () =>
+        receiveChannel.send(document.getElementById("PC-B-text").value)
+      );
+    receiveChannel.onmessage = (e) => {
+      console.log("messsage received!!!" + e.data);
+      document.getElementById(
+        "PC-B-Message"
+      ).innerHTML += `<br />Message from A: ${e.data}`;
+    };
+  };
+
+  </script>
+</html>
